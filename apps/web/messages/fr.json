@@ -1,0 +1,78 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "library": "Bibliothèque",
+    "collections": "Collections",
+    "about": "À propos",
+    "contribute": "Contribuer"
+  },
+  "home": {
+    "hero": {
+      "kicker": "Librarfree, bibliothèque publique, depuis 2026",
+      "title": "Une bibliothèque publique à l'échelle d'internet."
+    },
+    "search": {
+      "placeholder": "Chercher parmi 501 000 livres libres, auteurs, sujets",
+      "submit": "Chercher",
+      "hint": "Essayez Tolstoï, Les Misérables, philosophie, littérature japonaise",
+      "trustBand": "501 000 livres · 15 langues · 100 % domaine public · Gratuit à vie · Sans compte"
+    },
+    "top": {
+      "kicker": "Sur la table d'entrée",
+      "title": "Les plus empruntés cette semaine",
+      "subtitle": "Des classiques tirés des rayons. Un clic, ils sont à vous.",
+      "columns": {
+        "title": "Titre",
+        "author": "Auteur",
+        "year": "Année",
+        "language": "Langue",
+        "size": "Taille",
+        "action": "Télécharger"
+      },
+      "download": "Télécharger",
+      "viewAll": "Parcourir le catalogue complet"
+    },
+    "dewey": {
+      "kicker": "Trouvez votre étage",
+      "title": "Parcourir par classe Dewey",
+      "subtitle": "Dix classes, un demi million de volumes. Choisissez un étage, entrez.",
+      "classes": {
+        "000": "Ouvrages généraux",
+        "100": "Philosophie et psychologie",
+        "200": "Religion",
+        "300": "Sciences sociales",
+        "400": "Langues",
+        "500": "Sciences pures",
+        "600": "Sciences appliquées",
+        "700": "Arts et loisirs",
+        "800": "Littérature",
+        "900": "Histoire et géographie"
+      },
+      "countLabel": "volumes"
+    },
+    "readingRoom": {
+      "kicker": "Salle de lecture",
+      "title": "Aujourd'hui à la bibliothèque",
+      "subtitle": "Trois livres choisis par nos curateurs cette semaine. Ouvrez. Lisez un paragraphe. Décidez.",
+      "openBook": "Ouvrir le livre"
+    },
+    "stats": {
+      "books": "Volumes sur les rayons",
+      "languages": "Langues cataloguées",
+      "sources": "Archives partenaires",
+      "cost": "Coût pour vous"
+    }
+  },
+  "footer": {
+    "tagline": "Des livres libres. Pour toujours. Partout.",
+    "openSource": "100 % open source, licence MIT, contribuez sur GitHub",
+    "legal": "Mentions légales",
+    "community": "Communauté",
+    "builtBy": "Fait par des lecteurs, pour les lecteurs."
+  },
+  "common": {
+    "loading": "Chargement",
+    "readNow": "Lire maintenant",
+    "comingSoon": "Bientôt disponible"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@librarfree/importer-gutenberg",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Imports Project Gutenberg books into the Librarfree catalog.",
+  "type": "module",
+  "bin": {
+    "import-gutenberg": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"(no lint configured)\" && exit 0"
+  },
+  "dependencies": {
+    "@librarfree/brand": "workspace:*",
+    "@librarfree/db": "workspace:*",
+    "@librarfree/utils": "workspace:*",
+    "@aws-sdk/client-s3": "^3.717.0",
+    "fast-xml-parser": "^4.5.1",
+    "meilisearch": "^0.47.0",
+    "tsx": "^4.19.2",
+    "undici": "^6.21.0",
+    "yauzl": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/yauzl": "^2.10.3",
+    "typescript": "^5.6.3"
+  }
+}

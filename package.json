@@ -2,33 +2,37 @@
   "name": "librarfree",
   "version": "0.1.0",
   "private": true,
-  "description": "The world's largest legal free digital library – 100% open source, multilingual, and community-driven.",
-  "workspaces": [
-    "apps/*",
-    "packages/*",
-    "workers/*"
-  ],
+  "description": "The world's largest legal free digital library — 100% open source, multilingual, and community-driven.",
+  "packageManager": "pnpm@9.12.3",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "db:push": "turbo run db:push --filter=database",
-    "db:studio": "turbo run db:studio --filter=database",
-    "import:gutenberg": "turbo run import:gutenberg --filter=workers",
-    "import:gallica": "turbo run import:gallica --filter=workers",
-    "import:wikisource": "turbo run import:wikisource --filter=workers",
-    "embeddings": "turbo run embeddings --filter=workers",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,yml,yaml}\"",
     "test": "turbo run test",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean && rimraf node_modules .turbo",
+    "db:push": "turbo run db:push --filter=@librarfree/db",
+    "db:migrate": "turbo run db:migrate --filter=@librarfree/db",
+    "db:studio": "turbo run db:studio --filter=@librarfree/db",
+    "db:seed": "turbo run db:seed --filter=@librarfree/db",
+    "import:gutenberg": "pnpm --filter=@librarfree/importer-gutenberg start --",
+    "import:standard-ebooks": "turbo run import:standard-ebooks --filter=@librarfree/importer-standard-ebooks",
+    "import:gallica": "turbo run import:gallica --filter=@librarfree/importer-gallica",
+    "import:wikisource": "turbo run import:wikisource --filter=@librarfree/importer-wikisource",
+    "embeddings": "turbo run embeddings --filter=@librarfree/embedder"
   },
   "devDependencies": {
-    "prettier": "^3.2.5",
-    "turbo": "^1.12.5",
-    "typescript": "^5.4.2"
+    "@types/node": "^22.10.2",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.3.3",
+    "typescript": "^5.6.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
   },
   "repository": {
     "type": "git",

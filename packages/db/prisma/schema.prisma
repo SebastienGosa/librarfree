@@ -1,0 +1,543 @@
+// ============================================================
+// LIBRARFREE — Prisma 6 schema
+// ============================================================
+// Canonical DB = database/schema.sql (Postgres-first, UUID-native, TIMESTAMPTZ,
+// pgvector embeddings, RLS on user-scoped tables). This Prisma schema mirrors
+// that SQL for type-safe app access. Migrations are authored in SQL
+// (packages/db/prisma/migrations/) and `prisma db push` is fine for dev only.
+//
+// Run:
+//   pnpm --filter @librarfree/db db:generate
+//   pnpm --filter @librarfree/db db:push
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DATABASE_URL")
+  extensions = [uuidOssp(map: "uuid-ossp"), pgcrypto, vector, pg_trgm]
+}
+
+// ------------------------------------------------------------
+// Catalog core
+// ------------------------------------------------------------
+
+model Author {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  slug           String    @unique @db.VarChar(255)
+  name           String    @db.VarChar(255)
+  birthYear      Int?      @map("birth_year")
+  deathYear      Int?      @map("death_year")
+  nationality    String?   @db.VarChar(100)
+  bio            String?
+  wikipediaUrl   String?   @map("wikipedia_url") @db.VarChar(500)
+  imageUrl       String?   @map("image_url") @db.VarChar(500)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  books Book[]
+
+  @@index([nationality])
+  @@index([birthYear, deathYear])
+  @@map("authors")
+}
+
+model Book {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String?   @map("organization_id") @db.Uuid
+  slug                  String    @unique @db.VarChar(300)
+  gutenbergId           Int?      @unique @map("gutenberg_id")
+  titleOriginal         String    @map("title_original") @db.VarChar(500)
+  authorId              String?   @map("author_id") @db.Uuid
+  originalLanguage      String    @default("en") @map("original_language") @db.VarChar(10)
+  firstPublicationYear  Int?      @map("first_publication_year")
+  description           String?
+  coverImageUrl         String?   @map("cover_image_url") @db.VarChar(1000)
+  coverCredit           String?   @map("cover_credit") @db.VarChar(255)
+  averageRating         Decimal   @default(0) @map("average_rating") @db.Decimal(3, 2)
+  ratingCount           Int       @default(0) @map("rating_count")
+  readCount             BigInt    @default(0) @map("read_count")
+  downloadCount         BigInt    @default(0) @map("download_count")
+  subjects              String[]
+  genres                String[]
+  sourceProject         String?   @map("source_project") @db.VarChar(100)
+  sourceIdentifier      String?   @map("source_identifier") @db.VarChar(255)
+  sourceUrl             String?   @map("source_url") @db.VarChar(1000)
+  qualityScore          Int       @default(80) @map("quality_score")
+  isFeatured            Boolean   @default(false) @map("is_featured")
+  featuredReason        String?   @map("featured_reason") @db.VarChar(255)
+  ageRestricted         Boolean   @default(false) @map("age_restricted")
+  license               String    @default("public_domain") @db.VarChar(50)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  author             Author?            @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  translations       BookTranslation[]
+  categories         BookCategory[]
+  collections        CollectionBook[]
+  readingListEntries ReadingListBook[]
+  searchClicks       SearchQuery[]
+
+  @@index([originalLanguage])
+  @@index([firstPublicationYear])
+  @@index([sourceProject])
+  @@index([qualityScore(sort: Desc)])
+  @@map("books")
+}
+
+model BookTranslation {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookId                 String    @map("book_id") @db.Uuid
+  languageCode           String    @default("en") @map("language_code") @db.VarChar(10)
+  titleTranslated        String?   @map("title_translated") @db.VarChar(500)
+  descriptionTranslated  String?   @map("description_translated")
+  isMachineTranslated    Boolean   @default(false) @map("is_machine_translated")
+  translationQuality     String    @default("human_unknown") @map("translation_quality") @db.VarChar(50)
+  translatorName         String?   @map("translator_name") @db.VarChar(255)
+  translatorBio          String?   @map("translator_bio")
+  publisher              String?   @db.VarChar(255)
+  publicationYear        Int?      @map("publication_year")
+  translationEdition     String?   @map("translation_edition") @db.VarChar(100)
+  isbn13                 String?   @map("isbn_13") @db.VarChar(13)
+  sourceProject          String?   @map("source_project") @db.VarChar(100)
+  sourceIdentifier       String?   @map("source_identifier") @db.VarChar(255)
+  sourceUrl              String?   @map("source_url") @db.VarChar(1000)
+  wordCount              Int?      @map("word_count")
+  readingTimeMinutes     Int?      @map("reading_time_minutes")
+  readabilityScore       Decimal?  @map("readability_score") @db.Decimal(4, 2)
+  embedding              Unsupported("vector(768)")?
+  embeddingModel         String    @default("nomic-embed-text-v1.5") @map("embedding_model") @db.VarChar(50)
+  embeddingGeneratedAt   DateTime? @map("embedding_generated_at") @db.Timestamptz(6)
+  qualityCheckScore      Int       @default(100) @map("quality_check_score")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  book              Book              @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  files             BookFile[]
+  isbns             BookIsbn[]
+  libraryEntries    UserLibraryEntry[]
+  annotations       Annotation[]
+  readingSessions   ReadingSession[]
+
+  @@index([bookId])
+  @@index([languageCode])
+  @@index([translationQuality])
+  @@index([isMachineTranslated])
+  @@index([wordCount])
+  @@index([bookId, languageCode, sourceProject, sourceIdentifier], map: "idx_translations_dedup")
+  @@map("book_translations")
+}
+
+model BookFile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookTranslationId  String   @map("book_translation_id") @db.Uuid
+  format             String   @db.VarChar(20)
+  fileUrl            String   @map("file_url") @db.VarChar(1000)
+  fileSizeBytes      BigInt   @map("file_size_bytes")
+  checksumSha256     String?  @map("checksum_sha256") @db.Char(64)
+  isOriginal         Boolean  @default(false) @map("is_original")
+  generator          String?  @db.VarChar(100)
+  durationSeconds    Int?     @map("duration_seconds")
+  voice              String?  @db.VarChar(50)
+  downloadCount      BigInt   @default(0) @map("download_count")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  translation BookTranslation @relation(fields: [bookTranslationId], references: [id], onDelete: Cascade)
+
+  @@unique([bookTranslationId, format, voice])
+  @@index([bookTranslationId])
+  @@index([format])
+  @@map("book_files")
+}
+
+model BookIsbn {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookTranslationId String   @map("book_translation_id") @db.Uuid
+  isbn13            String   @unique @map("isbn_13") @db.VarChar(13)
+  isbn10            String?  @map("isbn_10") @db.VarChar(10)
+  publisher         String?  @db.VarChar(255)
+  publicationYear   Int?     @map("publication_year")
+  edition           String?  @db.VarChar(100)
+  format            String?  @db.VarChar(20)
+  affiliateLinks    Json?    @map("affiliate_links") @db.JsonB
+  pages             Int?
+  weightGrams       Int?     @map("weight_grams")
+  dimensions        String?  @db.VarChar(50)
+  source            String?  @db.VarChar(100)
+  verified          Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  translation     BookTranslation   @relation(fields: [bookTranslationId], references: [id], onDelete: Cascade)
+  affiliateClicks AffiliateClick[]
+
+  @@index([bookTranslationId])
+  @@index([publisher])
+  @@map("book_isbns")
+}
+
+// ------------------------------------------------------------
+// Taxonomy
+// ------------------------------------------------------------
+
+model Category {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug            String    @unique @db.VarChar(120)
+  nameI18n        Json      @map("name_i18n") @db.JsonB
+  descriptionI18n Json?     @map("description_i18n") @db.JsonB
+  parentId        String?   @map("parent_id") @db.Uuid
+  sortOrder       Int       @default(0) @map("sort_order")
+  icon            String?   @db.VarChar(50)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  parent   Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[]     @relation("CategoryHierarchy")
+  books    BookCategory[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model BookCategory {
+  bookId     String   @map("book_id") @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  book     Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, categoryId])
+  @@index([categoryId])
+  @@map("book_categories")
+}
+
+model Collection {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String    @unique @db.VarChar(200)
+  curatorUserId  String?   @map("curator_user_id") @db.Uuid
+  titleI18n      Json      @map("title_i18n") @db.JsonB
+  descriptionI18n Json?    @map("description_i18n") @db.JsonB
+  coverImageUrl  String?   @map("cover_image_url") @db.VarChar(1000)
+  isPublished    Boolean   @default(false) @map("is_published")
+  isOfficial     Boolean   @default(false) @map("is_official")
+  organizationId String?   @map("organization_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  books CollectionBook[]
+
+  @@index([curatorUserId])
+  @@map("collections")
+}
+
+model CollectionBook {
+  collectionId String   @map("collection_id") @db.Uuid
+  bookId       String   @map("book_id") @db.Uuid
+  sortOrder    Int      @default(0) @map("sort_order")
+  note         String?
+  addedAt      DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  book       Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, bookId])
+  @@index([collectionId, sortOrder])
+  @@map("collection_books")
+}
+
+// ------------------------------------------------------------
+// Affiliate
+// ------------------------------------------------------------
+
+model AffiliateRetailer {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  languageCode       String   @map("language_code") @db.VarChar(10)
+  retailerName       String   @map("retailer_name") @db.VarChar(100)
+  retailerType       String   @map("retailer_type") @db.VarChar(20)
+  countryCode        String   @map("country_code") @db.VarChar(10)
+  affiliateTag       String   @map("affiliate_tag") @db.VarChar(255)
+  urlTemplate        String   @map("url_template")
+  apiEndpoint        String?  @map("api_endpoint") @db.VarChar(500)
+  active             Boolean  @default(true)
+  priority           Int      @default(1)
+  commissionRate     Decimal? @map("commission_rate") @db.Decimal(5, 2)
+  minSalesThreshold  Int      @default(3) @map("min_sales_threshold")
+  notes              String?
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([languageCode, retailerName])
+  @@index([languageCode])
+  @@index([countryCode])
+  @@map("affiliate_retailers")
+}
+
+model AffiliateClick {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookIsbnId      String?   @map("book_isbn_id") @db.Uuid
+  retailerName    String    @map("retailer_name") @db.VarChar(100)
+  userId          String?   @map("user_id") @db.Uuid
+  userIp          String?   @map("user_ip") @db.Inet
+  userCountry     String?   @map("user_country") @db.VarChar(10)
+  userAgent       String?   @map("user_agent")
+  clickedAt       DateTime  @default(now()) @map("clicked_at") @db.Timestamptz(6)
+  converted       Boolean   @default(false)
+  convertedAt     DateTime? @map("converted_at") @db.Timestamptz(6)
+  conversionValue Decimal?  @map("conversion_value") @db.Decimal(10, 2)
+  orderId         String?   @map("order_id") @db.VarChar(255)
+  geoCity         String?   @map("geo_city") @db.VarChar(100)
+  geoRegion       String?   @map("geo_region") @db.VarChar(100)
+
+  isbn BookIsbn? @relation(fields: [bookIsbnId], references: [id], onDelete: SetNull)
+  user User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([bookIsbnId])
+  @@index([retailerName])
+  @@index([clickedAt(sort: Desc)])
+  @@map("affiliate_clicks")
+}
+
+// ------------------------------------------------------------
+// Users (mirrors Supabase auth.users)
+// ------------------------------------------------------------
+
+model User {
+  id                 String    @id @db.Uuid
+  email              String    @unique @db.VarChar(255)
+  username           String?   @unique @db.VarChar(50)
+  displayName        String?   @map("display_name") @db.VarChar(100)
+  avatarUrl          String?   @map("avatar_url") @db.VarChar(1000)
+  preferredLanguage  String    @default("en") @map("preferred_language") @db.VarChar(10)
+  theme              String    @default("system") @db.VarChar(20)
+  readerPrefs        Json      @default("{}") @map("reader_prefs") @db.JsonB
+  booksRead          Int       @default(0) @map("books_read")
+  readingStreak      Int       @default(0) @map("reading_streak")
+  lastReadAt         DateTime? @map("last_read_at") @db.Timestamptz(6)
+  bio                String?
+  location           String?   @db.VarChar(100)
+  website            String?   @db.VarChar(500)
+  isScholar          Boolean   @default(false) @map("is_scholar")
+  isCurator          Boolean   @default(false) @map("is_curator")
+  isSupporter        Boolean   @default(false) @map("is_supporter")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  lastSeenAt         DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  libraryEntries    UserLibraryEntry[]
+  readingLists      ReadingList[]
+  annotations       Annotation[]
+  readingSessions   ReadingSession[]
+  premiumSubs       PremiumSubscription[]
+  donations         Donation[]
+  searchQueries     SearchQuery[]
+  affiliateClicks   AffiliateClick[]
+
+  @@index([preferredLanguage])
+  @@map("users")
+}
+
+model UserLibraryEntry {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  bookTranslationId  String    @map("book_translation_id") @db.Uuid
+  status             String    @default("reading") @db.VarChar(20)
+  currentProgress    Int       @default(0) @map("current_progress")
+  lastReadPage       Int       @default(0) @map("last_read_page")
+  rating             Int?
+  reviewText         String?   @map("review_text")
+  reviewVisible      Boolean   @default(true) @map("review_visible")
+  startedAt          DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt         DateTime? @map("finished_at") @db.Timestamptz(6)
+  lastActivityAt     DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  translation BookTranslation @relation(fields: [bookTranslationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookTranslationId])
+  @@index([userId])
+  @@index([bookTranslationId])
+  @@index([status])
+  @@map("user_library")
+}
+
+model ReadingList {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  title        String    @db.VarChar(200)
+  description  String?
+  isPublic     Boolean   @default(false) @map("is_public")
+  forkOfId     String?   @map("fork_of_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  forkOf ReadingList?      @relation("ReadingListForks", fields: [forkOfId], references: [id], onDelete: SetNull)
+  forks  ReadingList[]     @relation("ReadingListForks")
+  books  ReadingListBook[]
+
+  @@index([userId])
+  @@map("reading_lists")
+}
+
+model ReadingListBook {
+  readingListId String   @map("reading_list_id") @db.Uuid
+  bookId        String   @map("book_id") @db.Uuid
+  sortOrder     Int      @default(0) @map("sort_order")
+  note          String?
+  addedAt       DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+
+  list ReadingList @relation(fields: [readingListId], references: [id], onDelete: Cascade)
+  book Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([readingListId, bookId])
+  @@index([readingListId, sortOrder])
+  @@map("reading_list_books")
+}
+
+model Annotation {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  bookTranslationId String   @map("book_translation_id") @db.Uuid
+  chapterId         Int?     @map("chapter_id")
+  startOffset       Int      @map("start_offset")
+  endOffset         Int      @map("end_offset")
+  selectedText      String   @map("selected_text")
+  note              String?
+  annotationType    String   @default("highlight") @map("annotation_type") @db.VarChar(20)
+  highlightColor    String?  @map("highlight_color") @db.VarChar(20)
+  tags              String[]
+  isPrivate         Boolean  @default(true) @map("is_private")
+  likesCount        Int      @default(0) @map("likes_count")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  translation BookTranslation @relation(fields: [bookTranslationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bookTranslationId])
+  @@index([annotationType])
+  @@map("annotations")
+}
+
+model ReadingSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  bookTranslationId String    @map("book_translation_id") @db.Uuid
+  startPage         Int?      @map("start_page")
+  endPage           Int?      @map("end_page")
+  durationSeconds   Int?      @map("duration_seconds")
+  pagesRead         Int?      @map("pages_read")
+  userAgent         String?   @map("user_agent")
+  deviceType        String?   @map("device_type") @db.VarChar(20)
+  startedAt         DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt           DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  translation BookTranslation @relation(fields: [bookTranslationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bookTranslationId])
+  @@index([startedAt(sort: Desc)])
+  @@map("reading_sessions")
+}
+
+// ------------------------------------------------------------
+// Monetization (Phase 4)
+// ------------------------------------------------------------
+
+model PremiumSubscription {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  stripeCustomerId      String?   @unique @map("stripe_customer_id") @db.VarChar(255)
+  stripeSubscriptionId  String?   @unique @map("stripe_subscription_id") @db.VarChar(255)
+  plan                  String    @db.VarChar(50)
+  status                String    @db.VarChar(30)
+  currentPeriodStart    DateTime? @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd      DateTime? @map("current_period_end") @db.Timestamptz(6)
+  cancelAt              DateTime? @map("cancel_at") @db.Timestamptz(6)
+  canceledAt            DateTime? @map("canceled_at") @db.Timestamptz(6)
+  trialEnd              DateTime? @map("trial_end") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("premium_subscriptions")
+}
+
+model Donation {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String?  @map("user_id") @db.Uuid
+  stripePaymentIntentId  String?  @unique @map("stripe_payment_intent_id") @db.VarChar(255)
+  amountCents            BigInt   @map("amount_cents")
+  currency               String   @default("EUR") @db.VarChar(3)
+  isRecurring            Boolean  @default(false) @map("is_recurring")
+  stripeSubscriptionId   String?  @map("stripe_subscription_id") @db.VarChar(255)
+  message                String?
+  displayName            String?  @map("display_name") @db.VarChar(100)
+  anonymous              Boolean  @default(false)
+  campaign               String?  @db.VarChar(100)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([campaign])
+  @@index([createdAt(sort: Desc)])
+  @@map("donations")
+}
+
+// ------------------------------------------------------------
+// Analytics & jobs
+// ------------------------------------------------------------
+
+model SearchQuery {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  queryText      String    @map("query_text")
+  queryLanguage  String?   @map("query_language") @db.VarChar(10)
+  resultsCount   Int?      @map("results_count")
+  userId         String?   @map("user_id") @db.Uuid
+  searchType     String    @default("text") @map("search_type") @db.VarChar(20)
+  clickedBookId  String?   @map("clicked_book_id") @db.Uuid
+  clickedAt      DateTime? @map("clicked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user        User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clickedBook Book? @relation(fields: [clickedBookId], references: [id], onDelete: SetNull)
+
+  @@index([queryLanguage])
+  @@index([createdAt(sort: Desc)])
+  @@map("search_queries")
+}
+
+model SystemJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobType        String    @map("job_type") @db.VarChar(100)
+  status         String    @default("pending") @db.VarChar(20)
+  parameters     Json?     @db.JsonB
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  errorMessage   String?   @map("error_message")
+  itemsProcessed Int       @default(0) @map("items_processed")
+  itemsTotal     Int?      @map("items_total")
+  workerId       String?   @map("worker_id") @db.VarChar(100)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([jobType])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("system_jobs")
+}

@@ -1,112 +1,96 @@
-# 🚀 Librarfree – Get Started
+# Librarfree — Get Started
 
-Bienvenue ! Ce dossier contient **le projet complet** de la mégabibliothèque légale.
+Bienvenue. Ce guide vous amène de 0 à "homepage tournante avec 100 livres Gutenberg indexés" en ~15 minutes.
 
-## 📖 Documentation essentielle
+## Lecture d'abord (~30 min cumulés)
 
-1. **`PLAN_MAITRE_LIBRARFREE.md`** → **LIRE EN PREMIER**  
-   Plan opérationnel complet : vision, architecture, roadmap 24 mois, budget, sources, traductions, affiliation.
+1. **`docs/PLAN_V2_REFONTE.md`** — vision 2026, refonte V2, wireframes, direction UX
+2. **`PLAN_MAITRE_LIBRARFREE.md`** — plan opérationnel historique 24 mois
+3. **`AFFILIATE_RETAILERS_CONFIG.md`** — retailers par langue pour la Phase 2
+4. **`database/schema.sql`** — schéma canonique (UUIDs, RLS, 20 tables)
+5. **`DEVELOPMENT.md`** — commandes dev, debug, structure code
 
-2. **`AFFILIATE_RETAILERS_CONFIG.md`** → Configuration affiliation multilingue  
-   Tous les retailers par langue (Amazon, Fnac, Thalia, etc.) + code SQL + API.
+## Stack
 
-3. **`database/schema.sql`** → Schéma base de données complet  
-   12 tables, indexes, pgvector, views, fonctions PostgreSQL.
+- **Monorepo** : pnpm 9 + Turborepo 2
+- **Frontend** : Next.js 15 + React 19 + Tailwind v4 + next-intl (12 locales)
+- **DB** : Postgres 16 (Supabase) + pgvector + pg_trgm via Prisma 6
+- **Search** : Meilisearch 1.7 (self-host VPS Hetzner en prod, Docker en dev)
+- **Storage** : MinIO local (émule S3/R2)
+- **Importers** : TypeScript + tsx, queue BullMQ à venir Phase 1
 
-4. **`docs/IMPORTS_PLAN.md`** → Guide d'import des sources livres  
-   Order recommandé : PG → Standard Ebooks → Gallica → Wikisource → etc.
+## Prérequis
 
-5. **`DEVELOPMENT.md`** → Guide technique complet  
-   Setup, commands, debugging, structure du code.
+- Node ≥ 20
+- pnpm ≥ 9 (`corepack enable`)
+- Docker + Docker Compose
+- Un projet Supabase (ou Postgres local)
 
-6. **`CONTRIBUTING.md`** → Comment contribuer  
-   Code style, commit messages, ajout sources/translations/retailers.
-
-## ⚡ Quick Start (5 minutes)
+## Quick start
 
 ```bash
-# 1. Setup environnement
-./scripts/setup_dev.sh
-
-# 2. Démarrer Docker (Postgres + Meilisearch)
-docker-compose up -d
-
-# 3. Installer dépendances
+# 1. Cloner + installer
+git clone https://github.com/SebastienGosa/librarfree.git
+cd librarfree
 pnpm install
 
-# 4. Lancer dev (2 terminaux)
-pnpm --filter web dev  # http://localhost:3000
-pnpm --filter api dev  # http://localhost:3333
+# 2. Config env
+cp .env.example .env.local
+# → remplir NEXT_PUBLIC_SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY, DATABASE_URL
 
-# 5. Premier import (test)
-pnpm --filter workers run import-gutenberg --limit 1000
+# 3. Démarrer l'infra locale (Postgres + Meilisearch + MinIO + Redis)
+docker compose up -d
+
+# 4. Générer + pousser le schéma
+pnpm --filter=@librarfree/db exec prisma generate
+pnpm --filter=@librarfree/db exec prisma db push
+
+# 5. Premier import (100 livres anglais depuis Gutenberg)
+pnpm import:gutenberg --limit=100 --language=en
+
+# 6. Lancer le dev server
+pnpm dev
+# → http://localhost:3000
 ```
 
-## 📂 Structure du projet
+## Checklist Phase 0 (Definition of Done)
+
+- [ ] Homepage affiche le nom + tagline depuis `@librarfree/brand`
+- [ ] Prisma Studio (`pnpm --filter=@librarfree/db exec prisma studio`) montre 100 livres
+- [ ] Meilisearch (`http://localhost:7700`) retourne des résultats sur "Dickens" / "Shakespeare"
+- [ ] MinIO console (`http://localhost:9001`) montre 100 fichiers `.txt` dans `books-content/gutenberg/`
+- [ ] `pnpm lint && pnpm typecheck && pnpm build` passent
+- [ ] CI GitHub verte sur premier push
+
+## Structure du projet
 
 ```
 librarfree/
-├── 📄 PLAN_MAITRE_LIBRARFREE.md     ← START HERE
-├── 📄 AFFILIATE_RETAILERS_CONFIG.md
-├── 📄 README.md
-├── 📄 DEVELOPMENT.md
-├── 📄 CONTRIBUTING.md
-├── 📄 LICENSE (MIT)
-├── 📄 .env.example
-├── 📄 docker-compose.yml
-├── 📄 package.json
-├── 📁 database/
-│   └── 📄 schema.sql
-├── 📁 scripts/
-│   └── 📄 setup_dev.sh
-├── 📁 docs/
-│   └── 📄 IMPORTS_PLAN.md
-├── 📁 apps/          (à développer)
-│   ├── web/          (Next.js frontend)
-│   └── api/          (tRPC backend)
-├── 📁 packages/      (à développer)
-│   ├── db/
-│   ├── ui/
-│   └── utils/
-└── 📁 workers/       (à développer)
-    ├── importers/
-    ├── translators/
-    ├── embedders/
-    └── isbn-lookup/
+├── apps/
+│   └── web/                  # Next.js 15 App Router
+├── packages/
+│   ├── brand/                # Single source of truth (couleurs, fonts, locales)
+│   ├── db/                   # Prisma schema + client
+│   ├── ui/                   # shadcn-flavored + composants Librarfree
+│   └── utils/                # format, slug, text quality, geoip, supabase
+├── workers/
+│   ├── importers/
+│   │   └── gutenberg/        # ✅ Phase 0
+│   ├── embedders/            # Phase 4
+│   ├── isbn-lookup/          # Phase 2
+│   └── translators/          # Phase 4
+├── database/
+│   └── schema.sql            # Canonical SQL
+├── docs/                     # Plans détaillés, specs
+└── .github/workflows/        # CI
 ```
 
-## 🎯 Prochaines étapes
+## Dépannage
 
-### Phase 1 – Setup (Aujourd'hui)
-- [x] Tous les fichiers sont dans ce dossier `librarfree/`
-- [ ] Lancer `./scripts/setup_dev.sh`
-- [ ] Créer repo GitHub et pousser
-- [ ] Obtenir clés API (Amazon PAAPI, etc.)
+**`ERR_PNPM_WORKSPACE_PROJECTS`** → lancer `corepack enable` puis `corepack prepare pnpm@9.12.3 --activate`.
 
-### Phase 2 – Import (Semaine 1)
-- [ ] Importer Project Gutenberg (70K EN)
-- [ ] Importer Standard Ebooks (7K EN quality)
-- [ ] Vérifier imports
+**`prisma not found`** → Prisma s'installe au niveau `packages/db`. Utiliser `pnpm --filter=@librarfree/db exec prisma ...`.
 
-### Phase 3 – Dev Frontend (Semaines 2-4)
-- [ ] Créer Next.js app dans `apps/web/`
-- [ ] Implémenter homepage + search
-- [ ] Book reader (mobile-first)
-- [ ] Meilisearch integration
+**`Can't resolve '@librarfree/...'`** → `pnpm install` depuis la racine pour recréer les symlinks workspace.
 
-### Phase 4 – Multilingue (Mois 2-3)
-- [ ] Gallica (FR)
-- [ ] Projekt Gutenberg-DE
-- [ ] Biblioteca Virtual (ES)
-- [ ] Affiliation retailers FR/DE/ES
-
-## 🆘 Aide
-
-- **Questions** : Voir `DEVELOPMENT.md`
-- **Bug** : Ouvrir issue sur GitHub
-- **Contribution** : Lire `CONTRIBUTING.md`
-- **Communauté** : Discord (à venir)
-
----
-
-**"La connaissance doit être libre."** – Librarfree Team 📚
+**MinIO refuse les uploads** → ouvrir `http://localhost:9001` (login `librarfree` / `librarfree-dev-password`) et créer les buckets `books-content`, `books-covers`, `books-exports`.

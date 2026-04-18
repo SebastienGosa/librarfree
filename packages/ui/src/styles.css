@@ -1,0 +1,13 @@
+/*
+ * @librarfree/ui — baseline stylesheet.
+ *
+ * Consumers import this once from apps/web/app/globals.css. Tailwind v4
+ * discovers component classes through the `@source` directive in the app's
+ * globals.css, so no preset file is required here.
+ */
+@layer components {
+  .lf-focus-ring {
+    outline: 2px solid theme(colors.ring);
+    outline-offset: 2px;
+  }
+}

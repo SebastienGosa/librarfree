@@ -1,8 +1,14 @@
 version: '3.8'
 
+# Librarfree dev stack — Phase 0
+# Brings up Postgres (with pgvector + pg_trgm), Meilisearch, MinIO (emulates R2), Redis.
+# Start: docker compose up -d
+# Stop:  docker compose down
+# Wipe:  docker compose down -v
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: librarfree-postgres
     environment:
       POSTGRES_USER: postgres
@@ -12,9 +18,10 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./database/init-extensions.sql:/docker-entrypoint-initdb.d/00-init-extensions.sql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d librarfree"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,6 +32,7 @@ services:
     environment:
       - MEILI_MASTER_KEY=changeme
       - MEILI_NO_ANALYTICS=true
+      - MEILI_ENV=development
     ports:
       - "7700:7700"
     volumes:
@@ -32,7 +40,59 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: librarfree-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: librarfree
+      MINIO_ROOT_PASSWORD: librarfree-dev-secret
+    ports:
+      - "9000:9000"   # S3 API (R2-compatible)
+      - "9001:9001"   # Web console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: librarfree-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 librarfree librarfree-dev-secret;
+      mc mb --ignore-existing local/librarfree-books-content;
+      mc mb --ignore-existing local/librarfree-covers;
+      mc mb --ignore-existing local/librarfree-exports;
+      mc anonymous set download local/librarfree-covers;
+      echo 'MinIO buckets ready';
+      "
+
+  redis:
+    image: redis:7-alpine
+    container_name: librarfree-redis
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
   meilisearch_data:
+  minio_data:
+  redis_data:

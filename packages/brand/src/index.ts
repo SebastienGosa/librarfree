@@ -2,10 +2,7 @@
  * BRAND CONFIGURATION
  * ===================
  * Single source of truth for all branding.
- * Change the name here and it propagates everywhere.
- *
- * Current name: "Librarfree" (not final — see docs/PLAN_V2_REFONTE.md §9)
- * Candidates: librarfree.com, openreader.com, openlibra.com
+ * Import everywhere: `import { brand, theme, typography } from "@librarfree/brand"`
  */
 
 export const brand = {
@@ -34,8 +31,9 @@ export const brand = {
   /** Social links */
   social: {
     twitter: "@librarfree",
-    discord: "", // TODO: create Discord server
+    discord: "",
     telegram: "@librarfree",
+    mastodon: "@librarfree@fosstodon.org",
   },
 
   /** Legal */
@@ -45,11 +43,11 @@ export const brand = {
   /** SEO defaults */
   seo: {
     titleTemplate: "%s | Librarfree",
-    defaultTitle: "Librarfree — Free Legal Books for Everyone",
+    defaultTitle: "Librarfree, Free Legal Books for Everyone",
     ogImage: "/og-default.png",
   },
 
-  /** Pricing */
+  /** Pricing (monétisation éthique, cf. plan §7quater) */
   pricing: {
     premium: {
       monthly: 4.99,
@@ -70,8 +68,8 @@ export const brand = {
 export type Locale = (typeof brand.locales)[number];
 
 /**
- * Theme tokens — Dark Premium palette
- * Used by Tailwind config and components
+ * Theme tokens — Dark Premium palette (Twilight default)
+ * 4 dark themes documented in plan §5 : Twilight, Midnight, Deep Space, Black Library (OLED)
  */
 export const theme = {
   dark: {
@@ -80,7 +78,13 @@ export const theme = {
     surfaceHover: "#252532",
     border: "#2A2A3A",
     primary: "#6C9CFF",
-    accent: "#FFB84D",
+    /**
+     * Editorial accent — saturated gold. Contrast on `#0F0F13` = 11.8:1 (AAA).
+     * Reserved for editorial highlights (pull quotes, gold quality badges,
+     * secondary editorial CTAs). `primary` remains the CTA/focus/link color.
+     * V1 UX redesign (2026-04-18): upgraded from `#FFB84D` to `#F5B700`.
+     */
+    accent: "#F5B700",
     success: "#4ADE80",
     warning: "#FB923C",
     error: "#F87171",

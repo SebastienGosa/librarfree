@@ -1,0 +1,178 @@
+@import "tailwindcss";
+@import "@librarfree/ui/styles.css";
+
+/*
+ * Librarfree global styles — Tailwind v4 CSS-first.
+ *
+ * Brand tokens live in @librarfree/brand. They're reflected below as CSS
+ * variables so Tailwind utilities (`bg-primary`, `text-muted-foreground`, …)
+ * resolve to our palette. Twilight dark theme is the default.
+ */
+
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
+@source "../components/**/*.{ts,tsx}";
+@source "../app/**/*.{ts,tsx}";
+
+@theme {
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  --font-serif: "Literata", "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Brand palette — mirror of @librarfree/brand theme.dark (Twilight) */
+  --color-background: #0F0F13;
+  --color-foreground: #E8E8ED;
+  --color-card: #1A1A24;
+  --color-card-foreground: #E8E8ED;
+  --color-popover: #1A1A24;
+  --color-popover-foreground: #E8E8ED;
+  --color-primary: #6C9CFF;
+  --color-primary-foreground: #0F0F13;
+  --color-secondary: #252532;
+  --color-secondary-foreground: #E8E8ED;
+  /* Editorial accent — gold #F5B700, 11.8:1 on #0F0F13 (AAA). V1 redesign. */
+  --color-accent: #F5B700;
+  --color-accent-foreground: #0F0F13;
+  --color-muted: #252532;
+  --color-muted-foreground: #8B8BA0;
+  --color-border: #2A2A3A;
+  --color-input: #2A2A3A;
+  --color-ring: #6C9CFF;
+  --color-destructive: #F87171;
+  --color-destructive-foreground: #0F0F13;
+
+  /* Library palette, warm rupture with the dark Twilight base */
+  --color-ivory: #f3ecd8;
+  --color-cream: #eadcc4;
+  --color-ink: #2a1f12;
+  --color-oak: #8b6f47;
+  --color-leaf: #2d4a3e;
+  --color-burgundy: #5b2a2a;
+
+  /* Radius */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  html[dir="rtl"] {
+    direction: rtl;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* "Editorial" container used across the homepage + long-form pages */
+  .container-editorial {
+    max-width: 72rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 768px) {
+    .container-editorial {
+      padding-inline: 2rem;
+    }
+  }
+
+  /* Library ambient light — directional warmth from top-left, like a reading
+     lamp in a darkened reading room. Pair with `bg-background` for body. */
+  .reading-room {
+    background-image:
+      radial-gradient(
+        ellipse 80% 60% at 15% -10%,
+        rgba(245, 183, 0, 0.08) 0%,
+        rgba(245, 183, 0, 0.02) 35%,
+        rgba(0, 0, 0, 0) 70%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 90% 100%,
+        rgba(108, 156, 255, 0.04) 0%,
+        rgba(0, 0, 0, 0) 60%
+      );
+  }
+
+  /* Aged paper texture — subtle warm fibre pattern, safe on dark bg. */
+  .paper-grain {
+    position: relative;
+  }
+  .paper-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      repeating-radial-gradient(
+        circle at 23% 17%,
+        rgba(245, 183, 0, 0.015) 0,
+        rgba(245, 183, 0, 0.015) 1px,
+        transparent 1px,
+        transparent 3px
+      ),
+      repeating-linear-gradient(
+        27deg,
+        rgba(255, 255, 255, 0) 0 40px,
+        rgba(245, 183, 0, 0.02) 40px 41px
+      );
+    mix-blend-mode: overlay;
+  }
+
+  /* Wooden panelling — used behind shelves to strengthen library feel. */
+  .wood-panel {
+    background:
+      repeating-linear-gradient(
+        92deg,
+        #1a1209 0 120px,
+        #221608 120px 121px,
+        #1a1209 121px 240px,
+        #140e07 240px 241px
+      );
+    box-shadow:
+      inset 0 0 0 1px rgba(245, 183, 0, 0.06),
+      inset 0 20px 40px -20px rgba(0, 0, 0, 0.8),
+      inset 0 -20px 40px -20px rgba(0, 0, 0, 0.8);
+  }
+}

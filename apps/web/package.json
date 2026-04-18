@@ -1,0 +1,42 @@
+{
+  "name": "@librarfree/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Librarfree web app — Next.js 15 App Router, multilingual (next-intl), Supabase auth, Tailwind 4.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@librarfree/brand": "workspace:*",
+    "@librarfree/db": "workspace:*",
+    "@librarfree/ui": "workspace:*",
+    "@librarfree/utils": "workspace:*",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.10",
+    "lucide-react": "^0.469.0",
+    "next": "^15.1.3",
+    "next-intl": "^3.26.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@tailwindcss/postcss": "^4.0.0-beta.8",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.3",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^4.0.0-beta.8",
+    "typescript": "^5.6.3"
+  }
+}

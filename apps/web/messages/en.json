@@ -1,0 +1,78 @@
+{
+  "nav": {
+    "home": "Home",
+    "library": "Library",
+    "collections": "Collections",
+    "about": "About",
+    "contribute": "Contribute"
+  },
+  "home": {
+    "hero": {
+      "kicker": "Librarfree, public library, since 2026",
+      "title": "A public library the size of the internet."
+    },
+    "search": {
+      "placeholder": "Search 501,000 free books, authors, subjects",
+      "submit": "Search",
+      "hint": "Try Tolstoy, War and Peace, philosophy, Japanese literature",
+      "trustBand": "501,000 books · 15 languages · 100% public domain · Free forever · No account"
+    },
+    "top": {
+      "kicker": "On the front table",
+      "title": "Most borrowed this week",
+      "subtitle": "Classics pulled from the shelves. One click and you have them.",
+      "columns": {
+        "title": "Title",
+        "author": "Author",
+        "year": "Year",
+        "language": "Language",
+        "size": "Size",
+        "action": "Download"
+      },
+      "download": "Download",
+      "viewAll": "Browse the full catalogue"
+    },
+    "dewey": {
+      "kicker": "Find your floor",
+      "title": "Browse by Dewey class",
+      "subtitle": "Ten classes, half a million volumes. Pick a floor, walk in.",
+      "classes": {
+        "000": "General works",
+        "100": "Philosophy and psychology",
+        "200": "Religion",
+        "300": "Social sciences",
+        "400": "Language",
+        "500": "Pure sciences",
+        "600": "Applied sciences",
+        "700": "Arts and recreation",
+        "800": "Literature",
+        "900": "History and geography"
+      },
+      "countLabel": "volumes"
+    },
+    "readingRoom": {
+      "kicker": "Reading room",
+      "title": "Today at the library",
+      "subtitle": "Three books our curators picked this week. Open. Read a paragraph. Decide.",
+      "openBook": "Open the book"
+    },
+    "stats": {
+      "books": "Volumes on the shelves",
+      "languages": "Languages catalogued",
+      "sources": "Partner archives",
+      "cost": "Cost to you"
+    }
+  },
+  "footer": {
+    "tagline": "Free books. Forever. Everywhere.",
+    "openSource": "100% open source, MIT licensed, contribute on GitHub",
+    "legal": "Legal",
+    "community": "Community",
+    "builtBy": "Built by readers, for readers."
+  },
+  "common": {
+    "loading": "Loading",
+    "readNow": "Read now",
+    "comingSoon": "Coming soon"
+  }
+}
