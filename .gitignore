@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+.out/
+dist/
+build/
+
+# Environment
+.env.local
+.env.*.local
+
+# Docker
+docker-data/
+
+# Database
+*.sqlite
+*.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Meilisearch data (local dev)
+meilisearch_data/
+
+# PostgreSQL data (local dev)
+postgres_data/
+
+# Temporary
+tmp/
+temp/

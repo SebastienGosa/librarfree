@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: librarfree-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: librarfree
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.7
+    container_name: librarfree-meilisearch
+    environment:
+      - MEILI_MASTER_KEY=changeme
+      - MEILI_NO_ANALYTICS=true
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+
+volumes:
+  postgres_data:
+  meilisearch_data:

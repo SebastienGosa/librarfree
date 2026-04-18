@@ -1,0 +1,54 @@
+{
+  "name": "librarfree",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The world's largest legal free digital library – 100% open source, multilingual, and community-driven.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "workers/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "db:push": "turbo run db:push --filter=database",
+    "db:studio": "turbo run db:studio --filter=database",
+    "import:gutenberg": "turbo run import:gutenberg --filter=workers",
+    "import:gallica": "turbo run import:gallica --filter=workers",
+    "import:wikisource": "turbo run import:wikisource --filter=workers",
+    "embeddings": "turbo run embeddings --filter=workers",
+    "test": "turbo run test",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "turbo": "^1.12.5",
+    "typescript": "^5.4.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SebastienGosa/librarfree.git"
+  },
+  "keywords": [
+    "library",
+    "ebooks",
+    "public-domain",
+    "free-books",
+    "multilingual",
+    "open-source",
+    "gutenberg",
+    "wikisource",
+    "digital-library"
+  ],
+  "author": "Sebastien Gosa <deproot.sebastien@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/SebastienGosa/librarfree/issues"
+  },
+  "homepage": "https://librarfree.com"
+}
