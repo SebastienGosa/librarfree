@@ -314,6 +314,24 @@ CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_language ON users(preferred_language);
 CREATE INDEX idx_users_supporter ON users(is_supporter) WHERE is_supporter = TRUE;
 
+-- Public profile projection. Keep this view limited to fields that are safe
+-- to expose to anonymous visitors; sensitive account fields stay behind the
+-- owner-only RLS policy on `users`.
+CREATE OR REPLACE VIEW public_user_profiles AS
+SELECT
+    id,
+    username,
+    display_name,
+    avatar_url,
+    preferred_language,
+    bio,
+    website,
+    is_scholar,
+    is_curator,
+    created_at
+FROM users
+WHERE username IS NOT NULL;
+
 -- ============================================================
 -- TABLE 12: user_library (personal shelf)
 -- ============================================================
@@ -759,8 +777,9 @@ $$ LANGUAGE plpgsql STABLE;
 
 -- users: owner read/update; public read of profile-safe columns handled at view/query layer
 DROP POLICY IF EXISTS users_self_select ON users;
-CREATE POLICY users_self_select ON users FOR SELECT USING (id = current_auth_uid() OR true);
-    -- keep SELECT open so public profiles render; sensitive columns must be filtered at the query layer
+CREATE POLICY users_self_select ON users FOR SELECT USING (id = current_auth_uid());
+    -- Public profile rendering should read from public_user_profiles instead of exposing
+    -- the full users table, which includes email, preferences, reading stats, and metadata.
 DROP POLICY IF EXISTS users_self_update ON users;
 CREATE POLICY users_self_update ON users FOR UPDATE USING (id = current_auth_uid());
 DROP POLICY IF EXISTS users_self_insert ON users;
@@ -772,17 +791,46 @@ CREATE POLICY user_library_owner ON user_library FOR ALL
     WITH CHECK (user_id = current_auth_uid());
 
 DROP POLICY IF EXISTS reading_lists_owner ON reading_lists;
-CREATE POLICY reading_lists_owner ON reading_lists FOR ALL
-    USING (user_id = current_auth_uid() OR is_public = TRUE)
+DROP POLICY IF EXISTS reading_lists_select ON reading_lists;
+CREATE POLICY reading_lists_select ON reading_lists FOR SELECT
+    USING (user_id = current_auth_uid() OR is_public = TRUE);
+DROP POLICY IF EXISTS reading_lists_insert ON reading_lists;
+CREATE POLICY reading_lists_insert ON reading_lists FOR INSERT
     WITH CHECK (user_id = current_auth_uid());
+DROP POLICY IF EXISTS reading_lists_update ON reading_lists;
+CREATE POLICY reading_lists_update ON reading_lists FOR UPDATE
+    USING (user_id = current_auth_uid())
+    WITH CHECK (user_id = current_auth_uid());
+DROP POLICY IF EXISTS reading_lists_delete ON reading_lists;
+CREATE POLICY reading_lists_delete ON reading_lists FOR DELETE
+    USING (user_id = current_auth_uid());
 
 DROP POLICY IF EXISTS reading_list_books_owner ON reading_list_books;
-CREATE POLICY reading_list_books_owner ON reading_list_books FOR ALL
+DROP POLICY IF EXISTS reading_list_books_select ON reading_list_books;
+CREATE POLICY reading_list_books_select ON reading_list_books FOR SELECT
     USING (
         EXISTS (
             SELECT 1 FROM reading_lists rl
             WHERE rl.id = reading_list_books.reading_list_id
               AND (rl.user_id = current_auth_uid() OR rl.is_public = TRUE)
+        )
+    );
+DROP POLICY IF EXISTS reading_list_books_insert ON reading_list_books;
+CREATE POLICY reading_list_books_insert ON reading_list_books FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM reading_lists rl
+            WHERE rl.id = reading_list_books.reading_list_id
+              AND rl.user_id = current_auth_uid()
+        )
+    );
+DROP POLICY IF EXISTS reading_list_books_update ON reading_list_books;
+CREATE POLICY reading_list_books_update ON reading_list_books FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM reading_lists rl
+            WHERE rl.id = reading_list_books.reading_list_id
+              AND rl.user_id = current_auth_uid()
         )
     )
     WITH CHECK (
@@ -792,11 +840,30 @@ CREATE POLICY reading_list_books_owner ON reading_list_books FOR ALL
               AND rl.user_id = current_auth_uid()
         )
     );
+DROP POLICY IF EXISTS reading_list_books_delete ON reading_list_books;
+CREATE POLICY reading_list_books_delete ON reading_list_books FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM reading_lists rl
+            WHERE rl.id = reading_list_books.reading_list_id
+              AND rl.user_id = current_auth_uid()
+        )
+    );
 
 DROP POLICY IF EXISTS annotations_rw ON annotations;
-CREATE POLICY annotations_rw ON annotations FOR ALL
-    USING (user_id = current_auth_uid() OR is_private = FALSE)
+DROP POLICY IF EXISTS annotations_select ON annotations;
+CREATE POLICY annotations_select ON annotations FOR SELECT
+    USING (user_id = current_auth_uid() OR is_private = FALSE);
+DROP POLICY IF EXISTS annotations_insert ON annotations;
+CREATE POLICY annotations_insert ON annotations FOR INSERT
     WITH CHECK (user_id = current_auth_uid());
+DROP POLICY IF EXISTS annotations_update ON annotations;
+CREATE POLICY annotations_update ON annotations FOR UPDATE
+    USING (user_id = current_auth_uid())
+    WITH CHECK (user_id = current_auth_uid());
+DROP POLICY IF EXISTS annotations_delete ON annotations;
+CREATE POLICY annotations_delete ON annotations FOR DELETE
+    USING (user_id = current_auth_uid());
 
 DROP POLICY IF EXISTS reading_sessions_owner ON reading_sessions;
 CREATE POLICY reading_sessions_owner ON reading_sessions FOR ALL
