@@ -744,6 +744,9 @@ ALTER TABLE annotations            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_sessions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE premium_subscriptions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donations              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE search_queries         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_clicks       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_jobs            ENABLE ROW LEVEL SECURITY;
 
 -- Helper that returns NULL outside Supabase (so the schema still loads in plain docker)
 CREATE OR REPLACE FUNCTION current_auth_uid() RETURNS UUID AS $$
@@ -812,6 +815,10 @@ DROP POLICY IF EXISTS donations_self ON donations;
 CREATE POLICY donations_self ON donations FOR SELECT
     USING (user_id = current_auth_uid() OR anonymous = FALSE);
     -- Writes via service_role only.
+
+-- search_queries, affiliate_clicks, and system_jobs hold analytics, tracking,
+-- and worker audit data. Keep direct anon/authenticated access closed; server
+-- routes, cron jobs, and workers should use service_role, which bypasses RLS.
 
 -- ============================================================
 -- SAMPLE DATA (dev only)
