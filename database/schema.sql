@@ -733,6 +733,21 @@ FROM donations
 GROUP BY 1
 ORDER BY 1 DESC;
 
+-- Public donor wall projection. Keep raw payment processor identifiers,
+-- user IDs, and anonymous donor rows on the owner-only donations table.
+CREATE OR REPLACE VIEW v_public_donations AS
+SELECT
+    id,
+    amount_cents,
+    currency,
+    is_recurring,
+    display_name,
+    message,
+    campaign,
+    created_at
+FROM donations
+WHERE anonymous = FALSE;
+
 -- ============================================================
 -- ROW LEVEL SECURITY (Supabase)
 -- ============================================================
@@ -744,6 +759,8 @@ ALTER TABLE annotations            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_sessions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE premium_subscriptions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donations              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE search_queries         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_clicks       ENABLE ROW LEVEL SECURITY;
 
 -- Helper that returns NULL outside Supabase (so the schema still loads in plain docker)
 CREATE OR REPLACE FUNCTION current_auth_uid() RETURNS UUID AS $$
@@ -809,9 +826,25 @@ CREATE POLICY premium_owner ON premium_subscriptions FOR SELECT
     -- All writes go through service_role (Stripe webhooks) — RLS blocks direct writes.
 
 DROP POLICY IF EXISTS donations_self ON donations;
-CREATE POLICY donations_self ON donations FOR SELECT
-    USING (user_id = current_auth_uid() OR anonymous = FALSE);
+DROP POLICY IF EXISTS donations_self_select ON donations;
+CREATE POLICY donations_self_select ON donations FOR SELECT
+    USING (user_id = current_auth_uid());
+    -- Public transparency reads should use v_transparency_monthly or
+    -- v_public_donations so Stripe IDs and user IDs stay private.
     -- Writes via service_role only.
+
+DROP POLICY IF EXISTS search_queries_owner_select ON search_queries;
+CREATE POLICY search_queries_owner_select ON search_queries FOR SELECT
+    USING (user_id = current_auth_uid());
+    -- Query analytics include user-linked behavior; aggregate dashboards should
+    -- use dedicated safe views or service_role reads.
+
+DROP POLICY IF EXISTS affiliate_clicks_owner_select ON affiliate_clicks;
+CREATE POLICY affiliate_clicks_owner_select ON affiliate_clicks FOR SELECT
+    USING (user_id = current_auth_uid());
+    -- Affiliate click rows can contain IP, user agent, geo, conversion, and
+    -- order metadata. Direct client access is owner-only; writes/analytics go
+    -- through service_role.
 
 -- ============================================================
 -- SAMPLE DATA (dev only)
