@@ -704,7 +704,7 @@ ORDER BY total_translations DESC;
 
 -- Fixed view: previous LEFT JOIN book_isbns ON true produced a cartesian product.
 -- Now we join through book_translations on language_code, then isbns, then clicks.
-CREATE OR REPLACE VIEW v_affiliate_performance AS
+CREATE OR REPLACE VIEW v_affiliate_performance WITH (security_invoker = true) AS
 SELECT
     ar.language_code,
     ar.retailer_name,
@@ -744,6 +744,7 @@ ALTER TABLE annotations            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_sessions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE premium_subscriptions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donations              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_retailers    ENABLE ROW LEVEL SECURITY;
 
 -- Helper that returns NULL outside Supabase (so the schema still loads in plain docker)
 CREATE OR REPLACE FUNCTION current_auth_uid() RETURNS UUID AS $$
@@ -812,6 +813,11 @@ DROP POLICY IF EXISTS donations_self ON donations;
 CREATE POLICY donations_self ON donations FOR SELECT
     USING (user_id = current_auth_uid() OR anonymous = FALSE);
     -- Writes via service_role only.
+
+-- Affiliate retailer rows include partner tags, commission rates, inactive
+-- routing config, and operator notes. Keep direct anon/authenticated access
+-- closed; affiliate URL generation and revenue dashboards should run through
+-- trusted server/service-role code.
 
 -- ============================================================
 -- SAMPLE DATA (dev only)
