@@ -657,7 +657,7 @@ $$ LANGUAGE plpgsql STABLE;
 -- ============================================================
 -- VIEWS
 -- ============================================================
-CREATE OR REPLACE VIEW v_book_catalog AS
+CREATE OR REPLACE VIEW v_book_catalog WITH (security_invoker = true) AS
 SELECT
     b.id AS book_id,
     b.slug AS book_slug,
@@ -685,21 +685,25 @@ LEFT JOIN authors a ON b.author_id = a.id
 LEFT JOIN book_translations bt ON bt.book_id = b.id
 LEFT JOIN book_isbns bi ON bi.book_translation_id = bt.id
 WHERE bt.id IS NOT NULL
+  AND b.organization_id IS NULL
+  AND (a.id IS NULL OR a.organization_id IS NULL)
 ORDER BY b.quality_score DESC, b.read_count DESC;
 
-CREATE OR REPLACE VIEW v_translation_quality_dashboard AS
+CREATE OR REPLACE VIEW v_translation_quality_dashboard WITH (security_invoker = true) AS
 SELECT
-    language_code,
+    bt.language_code,
     COUNT(*) AS total_translations,
-    COUNT(DISTINCT book_id) AS unique_books,
-    SUM(CASE WHEN is_machine_translated THEN 1 ELSE 0 END) AS ai_translations,
-    SUM(CASE WHEN is_machine_translated THEN 0 ELSE 1 END) AS human_translations,
-    ROUND(100.0 * SUM(CASE WHEN is_machine_translated THEN 0 ELSE 1 END) / NULLIF(COUNT(*),0), 2) AS human_pct,
-    AVG(word_count) AS avg_word_count,
-    COUNT(isbn_13) AS translations_with_isbn,
-    ROUND(100.0 * COUNT(isbn_13) / NULLIF(COUNT(*),0), 2) AS isbn_coverage_pct
-FROM book_translations
-GROUP BY language_code
+    COUNT(DISTINCT bt.book_id) AS unique_books,
+    SUM(CASE WHEN bt.is_machine_translated THEN 1 ELSE 0 END) AS ai_translations,
+    SUM(CASE WHEN bt.is_machine_translated THEN 0 ELSE 1 END) AS human_translations,
+    ROUND(100.0 * SUM(CASE WHEN bt.is_machine_translated THEN 0 ELSE 1 END) / NULLIF(COUNT(*),0), 2) AS human_pct,
+    AVG(bt.word_count) AS avg_word_count,
+    COUNT(bt.isbn_13) AS translations_with_isbn,
+    ROUND(100.0 * COUNT(bt.isbn_13) / NULLIF(COUNT(*),0), 2) AS isbn_coverage_pct
+FROM book_translations bt
+JOIN books b ON b.id = bt.book_id
+WHERE b.organization_id IS NULL
+GROUP BY bt.language_code
 ORDER BY total_translations DESC;
 
 -- Fixed view: previous LEFT JOIN book_isbns ON true produced a cartesian product.
@@ -737,6 +741,13 @@ ORDER BY 1 DESC;
 -- ROW LEVEL SECURITY (Supabase)
 -- ============================================================
 ALTER TABLE users                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE authors                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE books                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE book_translations      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE book_files             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE book_isbns             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE book_categories        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_library           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_lists          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_list_books     ENABLE ROW LEVEL SECURITY;
@@ -756,6 +767,64 @@ EXCEPTION WHEN OTHERS THEN
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+-- Public catalog tables may later hold organization-scoped B2B rows.
+-- Direct client reads are limited to the public catalog; writes stay server/service-role only.
+DROP POLICY IF EXISTS authors_public_catalog_select ON authors;
+CREATE POLICY authors_public_catalog_select ON authors FOR SELECT
+    USING (organization_id IS NULL);
+
+DROP POLICY IF EXISTS books_public_catalog_select ON books;
+CREATE POLICY books_public_catalog_select ON books FOR SELECT
+    USING (organization_id IS NULL);
+
+DROP POLICY IF EXISTS book_translations_public_catalog_select ON book_translations;
+CREATE POLICY book_translations_public_catalog_select ON book_translations FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM books b
+            WHERE b.id = book_translations.book_id
+              AND b.organization_id IS NULL
+        )
+    );
+
+DROP POLICY IF EXISTS book_files_public_catalog_select ON book_files;
+CREATE POLICY book_files_public_catalog_select ON book_files FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1
+            FROM book_translations bt
+            JOIN books b ON b.id = bt.book_id
+            WHERE bt.id = book_files.book_translation_id
+              AND b.organization_id IS NULL
+        )
+    );
+
+DROP POLICY IF EXISTS book_isbns_public_catalog_select ON book_isbns;
+CREATE POLICY book_isbns_public_catalog_select ON book_isbns FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1
+            FROM book_translations bt
+            JOIN books b ON b.id = bt.book_id
+            WHERE bt.id = book_isbns.book_translation_id
+              AND b.organization_id IS NULL
+        )
+    );
+
+DROP POLICY IF EXISTS categories_public_select ON categories;
+CREATE POLICY categories_public_select ON categories FOR SELECT
+    USING (true);
+
+DROP POLICY IF EXISTS book_categories_public_catalog_select ON book_categories;
+CREATE POLICY book_categories_public_catalog_select ON book_categories FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM books b
+            WHERE b.id = book_categories.book_id
+              AND b.organization_id IS NULL
+        )
+    );
 
 -- users: owner read/update; public read of profile-safe columns handled at view/query layer
 DROP POLICY IF EXISTS users_self_select ON users;
