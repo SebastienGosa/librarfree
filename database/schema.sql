@@ -576,7 +576,7 @@ BEGIN
                 ON CONFLICT (id) DO NOTHING;
                 RETURN NEW;
             END;
-            $inner$ LANGUAGE plpgsql SECURITY DEFINER;
+            $inner$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
         $f$;
         EXECUTE 'DROP TRIGGER IF EXISTS trg_on_auth_user_created ON auth.users';
         EXECUTE 'CREATE TRIGGER trg_on_auth_user_created AFTER INSERT ON auth.users ' ||
