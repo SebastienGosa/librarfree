@@ -744,6 +744,8 @@ ALTER TABLE annotations            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reading_sessions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE premium_subscriptions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donations              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE collections            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE collection_books       ENABLE ROW LEVEL SECURITY;
 
 -- Helper that returns NULL outside Supabase (so the schema still loads in plain docker)
 CREATE OR REPLACE FUNCTION current_auth_uid() RETURNS UUID AS $$
@@ -812,6 +814,72 @@ DROP POLICY IF EXISTS donations_self ON donations;
 CREATE POLICY donations_self ON donations FOR SELECT
     USING (user_id = current_auth_uid() OR anonymous = FALSE);
     -- Writes via service_role only.
+
+-- collections can be curator drafts or organization-scoped B2B rows.
+-- Anonymous/public reads are limited to published public-catalog collections.
+DROP POLICY IF EXISTS collections_select ON collections;
+CREATE POLICY collections_select ON collections FOR SELECT
+    USING (
+        curator_user_id = current_auth_uid()
+        OR (is_published = TRUE AND organization_id IS NULL)
+    );
+DROP POLICY IF EXISTS collections_insert ON collections;
+CREATE POLICY collections_insert ON collections FOR INSERT
+    WITH CHECK (curator_user_id = current_auth_uid());
+DROP POLICY IF EXISTS collections_update ON collections;
+CREATE POLICY collections_update ON collections FOR UPDATE
+    USING (curator_user_id = current_auth_uid())
+    WITH CHECK (curator_user_id = current_auth_uid());
+DROP POLICY IF EXISTS collections_delete ON collections;
+CREATE POLICY collections_delete ON collections FOR DELETE
+    USING (curator_user_id = current_auth_uid());
+
+DROP POLICY IF EXISTS collection_books_select ON collection_books;
+CREATE POLICY collection_books_select ON collection_books FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM collections c
+            WHERE c.id = collection_books.collection_id
+              AND (
+                  c.curator_user_id = current_auth_uid()
+                  OR (c.is_published = TRUE AND c.organization_id IS NULL)
+              )
+        )
+    );
+DROP POLICY IF EXISTS collection_books_insert ON collection_books;
+CREATE POLICY collection_books_insert ON collection_books FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM collections c
+            WHERE c.id = collection_books.collection_id
+              AND c.curator_user_id = current_auth_uid()
+        )
+    );
+DROP POLICY IF EXISTS collection_books_update ON collection_books;
+CREATE POLICY collection_books_update ON collection_books FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM collections c
+            WHERE c.id = collection_books.collection_id
+              AND c.curator_user_id = current_auth_uid()
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM collections c
+            WHERE c.id = collection_books.collection_id
+              AND c.curator_user_id = current_auth_uid()
+        )
+    );
+DROP POLICY IF EXISTS collection_books_delete ON collection_books;
+CREATE POLICY collection_books_delete ON collection_books FOR DELETE
+    USING (
+        EXISTS (
+            SELECT 1 FROM collections c
+            WHERE c.id = collection_books.collection_id
+              AND c.curator_user_id = current_auth_uid()
+        )
+    );
 
 -- ============================================================
 -- SAMPLE DATA (dev only)
