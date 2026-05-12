@@ -810,8 +810,9 @@ CREATE POLICY premium_owner ON premium_subscriptions FOR SELECT
 
 DROP POLICY IF EXISTS donations_self ON donations;
 CREATE POLICY donations_self ON donations FOR SELECT
-    USING (user_id = current_auth_uid() OR anonymous = FALSE);
-    -- Writes via service_role only.
+    USING (user_id = current_auth_uid());
+    -- Writes via service_role only. Public transparency should use aggregate/safe views,
+    -- not direct rows that include Stripe identifiers and donor messages.
 
 -- ============================================================
 -- SAMPLE DATA (dev only)
