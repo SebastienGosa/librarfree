@@ -576,7 +576,7 @@ BEGIN
                 ON CONFLICT (id) DO NOTHING;
                 RETURN NEW;
             END;
-            $inner$ LANGUAGE plpgsql SECURITY DEFINER;
+            $inner$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
         $f$;
         EXECUTE 'DROP TRIGGER IF EXISTS trg_on_auth_user_created ON auth.users';
         EXECUTE 'CREATE TRIGGER trg_on_auth_user_created AFTER INSERT ON auth.users ' ||
@@ -745,6 +745,16 @@ ALTER TABLE reading_sessions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE premium_subscriptions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donations              ENABLE ROW LEVEL SECURITY;
 
+-- Internal tables: no public read path. RLS is enabled with NO policy, which
+-- denies all anon/authenticated access while service_role (server routes, cron,
+-- workers, Stripe webhooks) still bypasses RLS. This closes the Supabase default
+-- grant that would otherwise expose search text/IP/user-agent, affiliate click
+-- tracking, worker job params/errors, and affiliate commission config.
+ALTER TABLE search_queries         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_clicks       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_jobs            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_retailers    ENABLE ROW LEVEL SECURITY;
+
 -- Helper that returns NULL outside Supabase (so the schema still loads in plain docker)
 CREATE OR REPLACE FUNCTION current_auth_uid() RETURNS UUID AS $$
 BEGIN
@@ -757,14 +767,39 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
--- users: owner read/update; public read of profile-safe columns handled at view/query layer
+-- users: owner-only direct table read. Public profile rendering goes through the
+-- public_user_profiles view (safe column subset) defined below, NOT the raw table.
+-- The previous policy used `OR true`, which made the whole users table (email,
+-- reader prefs, location, stats...) readable by any anon Supabase client.
 DROP POLICY IF EXISTS users_self_select ON users;
-CREATE POLICY users_self_select ON users FOR SELECT USING (id = current_auth_uid() OR true);
-    -- keep SELECT open so public profiles render; sensitive columns must be filtered at the query layer
+CREATE POLICY users_self_select ON users FOR SELECT USING (id = current_auth_uid());
 DROP POLICY IF EXISTS users_self_update ON users;
 CREATE POLICY users_self_update ON users FOR UPDATE USING (id = current_auth_uid());
 DROP POLICY IF EXISTS users_self_insert ON users;
 CREATE POLICY users_self_insert ON users FOR INSERT WITH CHECK (id = current_auth_uid());
+
+-- Public, profile-safe projection of users. Exposes ONLY columns meant to be
+-- shown on a public profile; email, reader_prefs, theme, preferred_language,
+-- last_read_at, last_seen_at and updated_at are intentionally excluded.
+-- The view runs with the owner's rights (security_invoker off) so it reads past
+-- the owner-only RLS policy above; that is the intended public read path.
+DROP VIEW IF EXISTS public_user_profiles;
+CREATE VIEW public_user_profiles AS
+SELECT
+    id,
+    username,
+    display_name,
+    avatar_url,
+    bio,
+    location,
+    website,
+    is_scholar,
+    is_curator,
+    is_supporter,
+    books_read,
+    reading_streak,
+    created_at
+FROM users;
 
 DROP POLICY IF EXISTS user_library_owner ON user_library;
 CREATE POLICY user_library_owner ON user_library FOR ALL
@@ -810,8 +845,10 @@ CREATE POLICY premium_owner ON premium_subscriptions FOR SELECT
 
 DROP POLICY IF EXISTS donations_self ON donations;
 CREATE POLICY donations_self ON donations FOR SELECT
-    USING (user_id = current_auth_uid() OR anonymous = FALSE);
-    -- Writes via service_role only.
+    USING (user_id = current_auth_uid());
+    -- Owner-only. Public transparency is served by the v_transparency_monthly
+    -- aggregate view, never by raw donation rows (which carry Stripe payment and
+    -- subscription ids, donor messages and campaign metadata). Writes via service_role only.
 
 -- ============================================================
 -- SAMPLE DATA (dev only)
