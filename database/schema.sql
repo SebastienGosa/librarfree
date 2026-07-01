@@ -576,7 +576,7 @@ BEGIN
                 ON CONFLICT (id) DO NOTHING;
                 RETURN NEW;
             END;
-            $inner$ LANGUAGE plpgsql SECURITY DEFINER;
+            $inner$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
         $f$;
         EXECUTE 'DROP TRIGGER IF EXISTS trg_on_auth_user_created ON auth.users';
         EXECUTE 'CREATE TRIGGER trg_on_auth_user_created AFTER INSERT ON auth.users ' ||
@@ -745,6 +745,16 @@ ALTER TABLE reading_sessions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE premium_subscriptions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donations              ENABLE ROW LEVEL SECURITY;
 
+-- Internal tables: no public read path. RLS is enabled with NO policy, which
+-- denies all anon/authenticated access while service_role (server routes, cron,
+-- workers, Stripe webhooks) still bypasses RLS. This closes the Supabase default
+-- grant that would otherwise expose search text/IP/user-agent, affiliate click
+-- tracking, worker job params/errors, and affiliate commission config.
+ALTER TABLE search_queries         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_clicks       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_jobs            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliate_retailers    ENABLE ROW LEVEL SECURITY;
+
 -- Helper that returns NULL outside Supabase (so the schema still loads in plain docker)
 CREATE OR REPLACE FUNCTION current_auth_uid() RETURNS UUID AS $$
 BEGIN
@@ -757,32 +767,78 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
--- users: owner read/update; public read of profile-safe columns handled at view/query layer
+-- users: owner-only direct table read. Public profile rendering goes through the
+-- public_user_profiles view (safe column subset) defined below, NOT the raw table.
+-- The previous policy used `OR true`, which made the whole users table (email,
+-- reader prefs, location, stats...) readable by any anon Supabase client.
 DROP POLICY IF EXISTS users_self_select ON users;
-CREATE POLICY users_self_select ON users FOR SELECT USING (id = current_auth_uid() OR true);
-    -- keep SELECT open so public profiles render; sensitive columns must be filtered at the query layer
+CREATE POLICY users_self_select ON users FOR SELECT USING (id = current_auth_uid());
 DROP POLICY IF EXISTS users_self_update ON users;
 CREATE POLICY users_self_update ON users FOR UPDATE USING (id = current_auth_uid());
 DROP POLICY IF EXISTS users_self_insert ON users;
 CREATE POLICY users_self_insert ON users FOR INSERT WITH CHECK (id = current_auth_uid());
+
+-- Public, profile-safe projection of users. Exposes ONLY columns meant to be
+-- shown on a public profile; email, reader_prefs, theme, preferred_language,
+-- last_read_at, last_seen_at and updated_at are intentionally excluded.
+-- The view runs with the owner's rights (security_invoker off) so it reads past
+-- the owner-only RLS policy above; that is the intended public read path.
+DROP VIEW IF EXISTS public_user_profiles;
+CREATE VIEW public_user_profiles AS
+SELECT
+    id,
+    username,
+    display_name,
+    avatar_url,
+    bio,
+    location,
+    website,
+    is_scholar,
+    is_curator,
+    is_supporter,
+    books_read,
+    reading_streak,
+    created_at
+FROM users;
 
 DROP POLICY IF EXISTS user_library_owner ON user_library;
 CREATE POLICY user_library_owner ON user_library FOR ALL
     USING (user_id = current_auth_uid())
     WITH CHECK (user_id = current_auth_uid());
 
+-- Read is public for shared lists, but writes/deletes stay owner-only. A single
+-- FOR ALL policy is unsafe here: DELETE only checks USING, so `OR is_public = TRUE`
+-- would let anyone delete a public list, and UPDATE could reassign ownership.
 DROP POLICY IF EXISTS reading_lists_owner ON reading_lists;
-CREATE POLICY reading_lists_owner ON reading_lists FOR ALL
-    USING (user_id = current_auth_uid() OR is_public = TRUE)
+DROP POLICY IF EXISTS reading_lists_read ON reading_lists;
+DROP POLICY IF EXISTS reading_lists_write ON reading_lists;
+CREATE POLICY reading_lists_read ON reading_lists FOR SELECT
+    USING (user_id = current_auth_uid() OR is_public = TRUE);
+CREATE POLICY reading_lists_insert ON reading_lists FOR INSERT
     WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY reading_lists_update ON reading_lists FOR UPDATE
+    USING (user_id = current_auth_uid())
+    WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY reading_lists_delete ON reading_lists FOR DELETE
+    USING (user_id = current_auth_uid());
 
 DROP POLICY IF EXISTS reading_list_books_owner ON reading_list_books;
-CREATE POLICY reading_list_books_owner ON reading_list_books FOR ALL
+DROP POLICY IF EXISTS reading_list_books_read ON reading_list_books;
+DROP POLICY IF EXISTS reading_list_books_write ON reading_list_books;
+CREATE POLICY reading_list_books_read ON reading_list_books FOR SELECT
     USING (
         EXISTS (
             SELECT 1 FROM reading_lists rl
             WHERE rl.id = reading_list_books.reading_list_id
               AND (rl.user_id = current_auth_uid() OR rl.is_public = TRUE)
+        )
+    );
+CREATE POLICY reading_list_books_write ON reading_list_books FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM reading_lists rl
+            WHERE rl.id = reading_list_books.reading_list_id
+              AND rl.user_id = current_auth_uid()
         )
     )
     WITH CHECK (
@@ -793,10 +849,20 @@ CREATE POLICY reading_list_books_owner ON reading_list_books FOR ALL
         )
     );
 
+-- Same split for annotations: non-private ones are publicly readable, but only
+-- the owner can update or delete them.
 DROP POLICY IF EXISTS annotations_rw ON annotations;
-CREATE POLICY annotations_rw ON annotations FOR ALL
-    USING (user_id = current_auth_uid() OR is_private = FALSE)
+DROP POLICY IF EXISTS annotations_read ON annotations;
+DROP POLICY IF EXISTS annotations_write ON annotations;
+CREATE POLICY annotations_read ON annotations FOR SELECT
+    USING (user_id = current_auth_uid() OR is_private = FALSE);
+CREATE POLICY annotations_insert ON annotations FOR INSERT
     WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY annotations_update ON annotations FOR UPDATE
+    USING (user_id = current_auth_uid())
+    WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY annotations_delete ON annotations FOR DELETE
+    USING (user_id = current_auth_uid());
 
 DROP POLICY IF EXISTS reading_sessions_owner ON reading_sessions;
 CREATE POLICY reading_sessions_owner ON reading_sessions FOR ALL
@@ -810,8 +876,10 @@ CREATE POLICY premium_owner ON premium_subscriptions FOR SELECT
 
 DROP POLICY IF EXISTS donations_self ON donations;
 CREATE POLICY donations_self ON donations FOR SELECT
-    USING (user_id = current_auth_uid() OR anonymous = FALSE);
-    -- Writes via service_role only.
+    USING (user_id = current_auth_uid());
+    -- Owner-only. Public transparency is served by the v_transparency_monthly
+    -- aggregate view, never by raw donation rows (which carry Stripe payment and
+    -- subscription ids, donor messages and campaign metadata). Writes via service_role only.
 
 -- ============================================================
 -- SAMPLE DATA (dev only)
