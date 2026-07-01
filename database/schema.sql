@@ -806,18 +806,39 @@ CREATE POLICY user_library_owner ON user_library FOR ALL
     USING (user_id = current_auth_uid())
     WITH CHECK (user_id = current_auth_uid());
 
+-- Read is public for shared lists, but writes/deletes stay owner-only. A single
+-- FOR ALL policy is unsafe here: DELETE only checks USING, so `OR is_public = TRUE`
+-- would let anyone delete a public list, and UPDATE could reassign ownership.
 DROP POLICY IF EXISTS reading_lists_owner ON reading_lists;
-CREATE POLICY reading_lists_owner ON reading_lists FOR ALL
-    USING (user_id = current_auth_uid() OR is_public = TRUE)
+DROP POLICY IF EXISTS reading_lists_read ON reading_lists;
+DROP POLICY IF EXISTS reading_lists_write ON reading_lists;
+CREATE POLICY reading_lists_read ON reading_lists FOR SELECT
+    USING (user_id = current_auth_uid() OR is_public = TRUE);
+CREATE POLICY reading_lists_insert ON reading_lists FOR INSERT
     WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY reading_lists_update ON reading_lists FOR UPDATE
+    USING (user_id = current_auth_uid())
+    WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY reading_lists_delete ON reading_lists FOR DELETE
+    USING (user_id = current_auth_uid());
 
 DROP POLICY IF EXISTS reading_list_books_owner ON reading_list_books;
-CREATE POLICY reading_list_books_owner ON reading_list_books FOR ALL
+DROP POLICY IF EXISTS reading_list_books_read ON reading_list_books;
+DROP POLICY IF EXISTS reading_list_books_write ON reading_list_books;
+CREATE POLICY reading_list_books_read ON reading_list_books FOR SELECT
     USING (
         EXISTS (
             SELECT 1 FROM reading_lists rl
             WHERE rl.id = reading_list_books.reading_list_id
               AND (rl.user_id = current_auth_uid() OR rl.is_public = TRUE)
+        )
+    );
+CREATE POLICY reading_list_books_write ON reading_list_books FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM reading_lists rl
+            WHERE rl.id = reading_list_books.reading_list_id
+              AND rl.user_id = current_auth_uid()
         )
     )
     WITH CHECK (
@@ -828,10 +849,20 @@ CREATE POLICY reading_list_books_owner ON reading_list_books FOR ALL
         )
     );
 
+-- Same split for annotations: non-private ones are publicly readable, but only
+-- the owner can update or delete them.
 DROP POLICY IF EXISTS annotations_rw ON annotations;
-CREATE POLICY annotations_rw ON annotations FOR ALL
-    USING (user_id = current_auth_uid() OR is_private = FALSE)
+DROP POLICY IF EXISTS annotations_read ON annotations;
+DROP POLICY IF EXISTS annotations_write ON annotations;
+CREATE POLICY annotations_read ON annotations FOR SELECT
+    USING (user_id = current_auth_uid() OR is_private = FALSE);
+CREATE POLICY annotations_insert ON annotations FOR INSERT
     WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY annotations_update ON annotations FOR UPDATE
+    USING (user_id = current_auth_uid())
+    WITH CHECK (user_id = current_auth_uid());
+CREATE POLICY annotations_delete ON annotations FOR DELETE
+    USING (user_id = current_auth_uid());
 
 DROP POLICY IF EXISTS reading_sessions_owner ON reading_sessions;
 CREATE POLICY reading_sessions_owner ON reading_sessions FOR ALL
